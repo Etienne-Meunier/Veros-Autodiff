@@ -1,159 +1,180 @@
-def warmup_acc(steps_bf_check = 300):
-    """
-    Initialize and warm up the ACC (Antarctic Circumpolar Current) simulation
+import sys
+sys.path.append('../veros/')
+sys.path.append('../setups/')
+from veros import runtime_settings
+setattr(runtime_settings, 'backend', 'jax')
+setattr(runtime_settings, 'force_overwrite', True)
+setattr(runtime_settings, 'linear_solver', 'scipy_jax')
 
-    Args:
-        steps_bf_check (int): Number of simulation steps for warm-up
+from jax import grad, random
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
+import abc
 
-    Returns:
-        acc: Initialized ACC simulation object
-    """
+
+from acc.acc import ACCSetup
+from tqdm import tqdm
+
+key = random.key(0)
+key, subkey = random.split(key)
+
+import jax, time
+
+from jax import jacfwd, jacrev, value_and_grad
+from functools import partial
+
+
+def warmup_acc(steps_bf_check = 300) :
     acc = ACCSetup()
     acc.setup()
-    # Add small perturbation to bottom friction
-    with acc.state.variables.unlock():
+    with acc.state.variables.unlock()  :
         acc.state.variables.r_bot += 1e-5
-    # Enable TKE and neutral diffusion settings
-    with acc.state.settings.unlock():
+    with acc.state.settings.unlock() :
         acc.state.settings.enable_tke = True
         acc.state.settings.enable_neutral_diffusion = True
-    # Run warm-up steps
-    for step in tqdm(range(steps_bf_check)):
+    for step in tqdm(range(steps_bf_check)) :
         acc.step(acc.state)
     return acc
 
-class autodiff:
-    """Base class for automatic differentiation methods"""
-
-    def __init__(self, step_function, agg_function, var_name):
+class autodiff() :
+    def __init__(self, step_function, agg_function,  var_name) :
         """
-        Initialize autodiff object
-
-        Args:
-            step_function: Function to be executed iteratively
-            agg_function: Aggregation function to compute final scalar output
-            var_name: Name of variable to differentiate with respect to
+            Computes derivative dL/dvar with L in R and var in R
+            step_function is the function done n iterations
+            agg_function is computed at the end to go from R^space -> R
+            var_name : name of the variable in the state to differentiatiat w.r.t
         """
         self.agg_function = agg_function
         self.step_function = partial(autodiff.pure, step=step_function)
         self.var_name = var_name
 
     @staticmethod
-    def pure(state, step):
-        """Convert state-modifying function to pure function"""
+    def pure(state, step) :
+        """
+            Convert the state function into a "pure step" copying the input state
+        """
         n_state = state.copy()
-        step(n_state)
+        step(n_state)  # This is a function that modifies state object inplace
         return n_state
 
     @staticmethod
     def set_var(var_name, state, var_value):
-        """Set variable value in state copy"""
         n_state = state.copy()
         vs = n_state.variables
         with n_state.variables.unlock():
             setattr(vs, var_name, var_value)
         return n_state
 
-class numerical_diff(autodiff):
-    """Numerical differentiation implementation"""
 
-    def g(self, state, var_value, iterations=1, eps=1e-9, **kwargs):
+    @staticmethod
+    def wrapper(var_value, state, step_fun, var_name, agg_func, iter):
+        n_state = numerical_diff.set_var(var_name, state, var_value)
+
+        for i in range(iter) :
+            n_state = step_fun(n_state)
+
+        return agg_func(n_state)
+
+
+    @abc.abstractmethod
+    def g(self, state, var_value, iterations=1, **kwargs) :
         """
-        Compute numerical gradient using finite differences
-
-        Args:
-            state: Current simulation state
-            var_value: Value at which to evaluate gradient
-            iterations: Number of simulation steps
-            eps: Small perturbation for finite difference
-
-        Returns:
-            tuple: (function value, gradient)
+            var_value : evaluation value for variable
+            iterations : number of time to execute step_function
+        Returns :
+            output : agg_function([step_function(state)]*it) in R
+            grad : (d ouput / d var_name |_var_value) in R
         """
-        wrap = partial(numerical_diff.wrapper,
-                      step_fun=self.step_function,
-                      var_name=self.var_name,
-                      agg_func=self.agg_function,
-                      iter=iterations)
+        pass
 
+
+class numerical_diff(autodiff) :
+
+    def g(self, state, var_value, iterations=1, eps=1e-9, **kwargs) :
+
+        wrap = partial(autodiff.wrapper,
+                        step_fun=self.step_function,
+                        var_name=self.var_name,
+                        agg_func=self.agg_function,
+                        iter=iterations)
         center = wrap(var_value, state)
+
         rgt = wrap(var_value - eps, state)
-        numerical_grad = (center - rgt)/(eps)
+        numerical_grad =  (center - rgt)/(eps)
 
         return center, numerical_grad
 
-class forward_diff(autodiff):
-    """Forward-mode automatic differentiation implementation"""
+    def __str__(self) :
+        return "numerical_diff"
 
-    def g(self, state, var_value, iterations=1, eps=1e-9, **kwargs):
-        """
-        Compute gradient using forward-mode autodiff
+class forward_diff(autodiff) :
 
-        Args:
-            state: Current simulation state
-            var_value: Value at which to evaluate gradient
-            iterations: Number of simulation steps
-
-        Returns:
-            gradient computed using JAX's forward-mode autodiff
-        """
-        wrap = partial(numerical_diff.wrapper,
-                      step_fun=self.step_function,
-                      var_name=self.var_name,
-                      agg_func=self.agg_function,
-                      iter=iterations)
+    def g(self, state, var_value, iterations=1, eps=1e-9, **kwargs) :
+        wrap = partial(autodiff.wrapper,
+                        step_fun=self.step_function,
+                        var_name=self.var_name,
+                        agg_func=self.agg_function,
+                        iter=iterations)
 
         grad_forward = jacfwd(wrap, argnums=0)(var_value, state)
-        return grad_forward
+        return grad_forward#value, grad_forward
 
-class jvp_diff(autodiff):
-    """Jacobian-vector product implementation"""
+    def __str__(self) :
+        return "forward_diff"
 
-    def g(self, state, var_value, iterations=1, **kwargs):
-        """
-        Compute gradient using JVP
 
-        Args:
-            state: Current simulation state
-            var_value: Value at which to evaluate gradient
-            iterations: Number of simulation steps
+class backward_diff(autodiff) :
 
-        Returns:
-            tuple: (function value, gradient computed using JVP)
-        """
+    def g(self, state, var_value, iterations=1, eps=1e-9, **kwargs) :
+        wrap = partial(autodiff.wrapper,
+                        step_fun=self.step_function,
+                        var_name=self.var_name,
+                        agg_func=self.agg_function,
+                        iter=iterations)
+
+        grad_forward = jacrev(wrap, argnums=0)(var_value, state)
+        return grad_forward#value, grad_forward
+
+    def __str__(self) :
+        return "backward_diff"
+
+class jvp_diff(autodiff) :
+
+    def g(self, state, var_value, iterations=1, **kwargs) :
         n_state = numerical_diff.set_var(self.var_name, state, var_value)
         tangent_state = n_state.get_tangeant(self.var_name)
 
-        # Propagate tangents through iterations
-        for i in range(iterations):
+        for i in range(iterations) :
             next_state, tangent_state = jax.jvp(self.step_function, (n_state,), (tangent_state,))
-        center, grad_jvp = jax.jvp(agg_sum, (n_state,), (tangent_state,))
+        center, grad_jvp = jax.jvp(self.agg_function, (n_state,), (tangent_state, ))
         return center, grad_jvp
 
-if __name__ =='__main__':
-    # Initialize and warm up simulation
-    acc = warmup_acc(300)
+    def __str__(self) :
+        return "jvp_diff"
+
+
+
+if __name__ =='__main__' :
+    acc = warmup_acc(20)
     acc.state._diagnostics = {}
 
-    # Define aggregation function for gradient computation
-    def agg_sum(state, key_sum='u', cv=slice(-5,-1,1)):
-        """Compute mean squared difference of velocity field"""
+    # Params auto-diff
+    def agg_sum(state, key_sum = 'u', cv = slice(-5,-1,1)) :
         return (getattr(state.variables, key_sum)[:,:,:].mean() - 0)**2
 
-    # Setup parameters for gradient computation
     step_function = acc.step
-    agg_function = agg_sum
+    agg_function =agg_sum
     var_name = 'r_bot'
     var = jnp.array(1e-5, dtype=jnp.float64)
-    iteration_grad = 10
+    iteration_grad = 5
 
-    # Compare different differentiation methods
-    methods = [numerical_diff, forward_diff, jvp_diff]
-    for ad_method in methods:
-        ad = ad_method(step_function, agg_function, var_name)
+    methods = [numerical_diff, backward_diff, forward_diff, jvp_diff]
+    for ad_method in methods :
+        ad = ad_method(step_function, agg_function,  var_name)
 
         start_time = time.time()
-        n_diff = ad.g(acc.state, var_value=var, iterations=1)
-        print(f'{ad}: {n_diff}')
+        n_diff = ad.g(acc.state, var_value = var, iterations=1)
+        print(f'{ad} : ', n_diff)
         n_diff_time = time.time() - start_time
-        print(f'Time taken for {ad}: {n_diff_time:.4f} seconds')
+        print(f'Time taken for {ad}: {n_diff_time:.4f} seconds - its={iteration_grad} \n')

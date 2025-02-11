@@ -1,0 +1,9 @@
+*.nc
+*.DS_STORE
+__py_cache__/
+*.py[cod]
+*$py.classi
+
+.ipynb_checkpoints
+*.ipynb_checkpoints
+.ipynb_checkpoints/

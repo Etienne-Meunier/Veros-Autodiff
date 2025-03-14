@@ -6,15 +6,14 @@ setattr(runtime_settings, 'backend', 'jax')
 setattr(runtime_settings, 'force_overwrite', True)
 setattr(runtime_settings, 'linear_solver', 'scipy_jax')
 
+from utils import warmup_acc, autodiff
+
 from jax import grad, random
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-import abc
+from functools import partial
 
-
-from acc.acc import ACCSetup
-from tqdm import tqdm
 
 key = random.key(0)
 key, subkey = random.split(key)
@@ -22,72 +21,6 @@ key, subkey = random.split(key)
 import jax, time
 
 from jax import jacfwd, jacrev, value_and_grad
-from functools import partial
-
-
-def warmup_acc(steps_bf_check = 300) :
-    acc = ACCSetup()
-    acc.setup()
-    with acc.state.variables.unlock()  :
-        acc.state.variables.r_bot += 1e-5
-    with acc.state.settings.unlock() :
-        acc.state.settings.enable_tke = True
-        acc.state.settings.enable_neutral_diffusion = True
-    for step in tqdm(range(steps_bf_check)) :
-        acc.step(acc.state)
-    return acc
-
-class autodiff() :
-    def __init__(self, step_function, agg_function,  var_name) :
-        """
-            Computes derivative dL/dvar with L in R and var in R
-            step_function is the function done n iterations
-            agg_function is computed at the end to go from R^space -> R
-            var_name : name of the variable in the state to differentiatiat w.r.t
-        """
-        self.agg_function = agg_function
-        self.step_function = partial(autodiff.pure, step=step_function)
-        self.var_name = var_name
-
-    @staticmethod
-    def pure(state, step) :
-        """
-            Convert the state function into a "pure step" copying the input state
-        """
-        n_state = state.copy()
-        step(n_state)  # This is a function that modifies state object inplace
-        return n_state
-
-    @staticmethod
-    def set_var(var_name, state, var_value):
-        n_state = state.copy()
-        vs = n_state.variables
-        with n_state.variables.unlock():
-            setattr(vs, var_name, var_value)
-        return n_state
-
-
-    @staticmethod
-    def wrapper(var_value, state, step_fun, var_name, agg_func, iter):
-        n_state = numerical_diff.set_var(var_name, state, var_value)
-
-        for i in range(iter) :
-            n_state = step_fun(n_state)
-
-        return agg_func(n_state)
-
-
-    @abc.abstractmethod
-    def g(self, state, var_value, iterations=1, **kwargs) :
-        """
-            var_value : evaluation value for variable
-            iterations : number of time to execute step_function
-        Returns :
-            output : agg_function([step_function(state)]*it) in R
-            grad : (d ouput / d var_name |_var_value) in R
-        """
-        pass
-
 
 class numerical_diff(autodiff) :
 
@@ -139,10 +72,10 @@ class backward_diff(autodiff) :
     def __str__(self) :
         return "backward_diff"
 
-class jvp_diff(autodiff) :
+class jvp_grad(autodiff) :
 
     def g(self, state, var_value, iterations=1, **kwargs) :
-        n_state = numerical_diff.set_var(self.var_name, state, var_value)
+        n_state = autodiff.set_var(self.var_name, state, var_value)
         tangent_state = n_state.get_tangeant(self.var_name)
 
         for i in range(iterations) :
@@ -154,7 +87,7 @@ class jvp_diff(autodiff) :
         return "jvp_diff"
 
 
-def vjp_grad(state, function, var = jnp.array(1e-5, dtype=jnp.float64), iteration_grad = 10):
+def vjp_grad(state, function, agg_sum, var = jnp.array(1e-5, dtype=jnp.float64), iteration_grad = 10):
     next_state = state.copy()
     with next_state.variables.unlock():
         setattr(next_state.variables, 'r_bot', var)
@@ -163,9 +96,11 @@ def vjp_grad(state, function, var = jnp.array(1e-5, dtype=jnp.float64), iteratio
     current_state = next_state
     funs = []
     for i in range(iteration_grad):
+        print(f'a {i}')
         current_state, vjp_fun  = jax.vjp(function, current_state)
         funs.append(vjp_fun)
 
+    print('back')
     # Compute final output
     l, vjp_agg = jax.vjp(agg_sum, current_state)
 
@@ -178,7 +113,7 @@ def vjp_grad(state, function, var = jnp.array(1e-5, dtype=jnp.float64), iteratio
     # Backpropagate through all steps
     for vjp_fun in reversed(funs):
         ds, = vjp_fun(ds)
-
+    return ds
 
 if __name__ =='__main__' :
     acc = warmup_acc(20)
@@ -194,7 +129,7 @@ if __name__ =='__main__' :
     var = jnp.array(1e-5, dtype=jnp.float64)
     iteration_grad = 5
 
-    methods = [numerical_diff, backward_diff, forward_diff, jvp_diff]
+    methods = [vjp_grad]#[numerical_diff, backward_diff, forward_diff, jvp_grad, vjp_grad]
     for ad_method in methods :
         ad = ad_method(step_function, agg_function,  var_name)
 
@@ -203,3 +138,6 @@ if __name__ =='__main__' :
         print(f'{ad} : ', n_diff)
         n_diff_time = time.time() - start_time
         print(f'Time taken for {ad}: {n_diff_time:.4f} seconds - its={iteration_grad} \n')
+
+# problem with step not being pure
+vjp_grad(acc.state, step_function, agg_function, var = var, iteration_grad = iteration_grad)

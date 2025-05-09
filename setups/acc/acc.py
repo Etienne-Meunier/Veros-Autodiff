@@ -95,6 +95,9 @@ class ACCSetup(VerosSetup):
         settings.enable_eke_superbee_advection = True
         settings.enable_eke_isopycnal_diffusion = True
 
+
+        settings.enable_streamfunction = False
+
         settings.enable_idemix = False
 
         settings.eq_of_state_type = 3

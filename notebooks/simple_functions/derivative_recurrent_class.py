@@ -57,6 +57,7 @@ for i in range(5) :
     s, ds =  jax.jvp(f, (s,), (ds,))
 s, dl_da = jax.jvp(g, (s,), (ds,))
 print('Forward JVP', dl_da)
+
 # Using backward vjp
 funs = []
 s = State(s_0=s_0, alpha=alpha)

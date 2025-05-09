@@ -2,9 +2,9 @@ import jax.numpy as jnp
 import jax
 from jax import random
 
-from multiprocessing.dummy import Array
 def f(x) :
     return (x**2)
+
 key = random.key(0)
 k1,k2,k3 = random.split(key, 3)
 x_0 =  random.normal(k1, (10))
@@ -49,7 +49,9 @@ s_0 = State(*random.normal(k1, (2)))
 s_v = State(*random.normal(k2, (2)))
 s_vd = State(*random.normal(k3, (2)))
 res, gf = jax.jvp(f, (s_0,), (s_vd,))
+print(s_v@gf)
 
-print(s_v@gf)
-res, gf = jax.jvp(f, (s_0,), (s_vd,))
-print(s_v@gf)
+
+res_2, grad_fun = jax.vjp(f, s_0)
+gb, = grad_fun(s_v)
+print(gb@s_vd)

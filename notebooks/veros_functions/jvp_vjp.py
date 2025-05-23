@@ -15,8 +15,6 @@ from functools import partial
 from jax import random
 import jax
 import jax.numpy as jnp
-acc = warmup_acc(20)
-acc.state._diagnostics = {}
 
 
 def pure(state, step) :
@@ -30,7 +28,8 @@ def pure(state, step) :
 def simple(state) :
     with state.variables.unlock() :
         state.variables.u +=  1e5 * state.variables.r_bot**2
-acc.state.settings.enable_streamfunction
+
+
 
 
 %load_ext autoreload
@@ -45,8 +44,11 @@ def lbf(state) :
         state.variables.update(my_linear_bottom_friction(state))
         solve_streamfunction(state)
 
-with acc.state.settings.unlock() :
-    acc.state.settings.enable_streamfunction = False
+
+acc = warmup_acc(20, override_settings={'enable_streamfunction' : False})
+acc.state._diagnostics = {}
+
+
 state = acc.state
 step = partial(pure, step=acc.step)#acc.step) # step = acc.step
 
@@ -82,5 +84,4 @@ new_state, grad_fun_a = jax.vjp(step, s_0)
 l, grad_fun_g = jax.vjp(agg_sum, new_state)
 grad_g,  = grad_fun_g(1.0)
 grad_a, = grad_fun_a(grad_g)
-
 print('VJP :', grad_a.variables.r_bot)

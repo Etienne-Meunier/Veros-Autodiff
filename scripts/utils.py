@@ -3,8 +3,8 @@ from functools import partial
 import abc
 from tqdm import tqdm
 
-def warmup_acc(steps_bf_check = 300) :
-    acc = ACCSetup()
+def warmup_acc(steps_bf_check = 300, override_settings={}) :
+    acc = ACCSetup(override=override_settings)
     acc.setup()
     with acc.state.variables.unlock()  :
         acc.state.variables.r_bot += 1e-5

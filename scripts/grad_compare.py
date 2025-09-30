@@ -6,7 +6,7 @@ setattr(runtime_settings, 'backend', 'jax')
 setattr(runtime_settings, 'force_overwrite', True)
 setattr(runtime_settings, 'linear_solver', 'scipy_jax')
 
-from utils import warmup_acc, autodiff
+from .utils import warmup_acc, autodiff
 
 from jax import grad, random
 import jax.numpy as jnp

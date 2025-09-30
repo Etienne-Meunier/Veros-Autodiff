@@ -1,6 +1,7 @@
 import sys
-sys.path.append('../veros/')
-sys.path.append('../setups/')
+from __init__ import PRP
+sys.path.append(f'{PRP}/veros/')
+sys.path.append(f'{PRP}/setups/')
 from veros import runtime_settings
 setattr(runtime_settings, 'backend', 'jax')
 setattr(runtime_settings, 'force_overwrite', True)

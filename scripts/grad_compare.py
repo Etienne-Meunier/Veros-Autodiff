@@ -1,12 +1,14 @@
-import sys
-sys.path.append('../veros/')
-sys.path.append('../setups/')
+from __init__ import PRP; import sys
+sys.path.append(PRP + 'setups/')
+sys.path.append(PRP + 'veros/')
+sys.path.append(PRP + 'scripts/')
+
 from veros import runtime_settings
 setattr(runtime_settings, 'backend', 'jax')
 setattr(runtime_settings, 'force_overwrite', True)
 setattr(runtime_settings, 'linear_solver', 'scipy_jax')
 
-from .utils import warmup_acc, autodiff
+from utils import warmup_acc, autodiff
 
 from jax import grad, random
 import jax.numpy as jnp
@@ -133,7 +135,7 @@ if __name__ =='__main__' :
     agg_function =agg_sum
     var_name = 'r_bot'
     var = jnp.array(1e-5, dtype=jnp.float64)
-    iteration_grad = 5
+    iteration_grad = 100
 
     methods = [numerical_diff, jvp_grad, vjp_grad]#[numerical_diff, backward_diff, forward_diff, jvp_grad, vjp_grad]
 

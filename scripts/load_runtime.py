@@ -5,4 +5,4 @@ from veros import runtime_settings
 setattr(runtime_settings, 'backend', 'jax')
 setattr(runtime_settings, 'force_overwrite', True)
 setattr(runtime_settings, 'linear_solver', 'scipy_jax')
-setattr(runtime_settings, 'device', 'gpu')
+setattr(runtime_settings, 'device', 'cpu')

@@ -17,10 +17,17 @@ variable_to_compare = 'temp' # Compare between perturbed and target
 acc = ACCSetup()
 acc.setup()
 
+<<<<<<< HEAD
+=======
+breakpoint()
+for step in tqdm(range(10)) :
+    acc.step(acc.state)
+>>>>>>> 33192fb7ae1e12682fec40f362689860fa8b0d84
 
 for step in tqdm(range(warmup_steps)) :
     acc.step(acc.state)
 
+breakpoint()
 
 # Build target
 
@@ -35,9 +42,18 @@ target_field = getattr(target_state.variables, variable_to_perturb).copy()
 # Perturb 
 perturb_state = initial_state.copy()
 
+<<<<<<< HEAD
 # with perturb_state.variables.unlock() :
 #     v = getattr(perturb_state.variables, variable_to_perturb)
 #     setattr(perturb_state.variables, variable_to_perturb, v*1.01)
+=======
+with perturb_state.variables.unlock() :
+    v = getattr(perturb_state.variables, variable_to_perturb)
+    setattr(perturb_state.variables, variable_to_perturb, v*1.3)
+
+field = getattr(perturb_state.variables, variable_to_perturb).copy()
+
+>>>>>>> 33192fb7ae1e12682fec40f362689860fa8b0d84
 
 field = getattr(perturb_state.variables, variable_to_perturb).copy() * 1.3
 
@@ -56,15 +72,29 @@ loss_and_grad = jax.jit(lambda s, v: vjpm.g(s, v, iterations=n_iteration))
 
 
 stats = []
+<<<<<<< HEAD
 pbar = tqdm(range(200))
     
+=======
+pbar = tqdm(range(2000))
+>>>>>>> 33192fb7ae1e12682fec40f362689860fa8b0d84
 for i in pbar:
     output_forward, gradients = loss_and_grad(perturb_state, field)
     distance = ((field - target_field) ** 2).mean()
     stats.append({'loss': output_forward, 'distance': distance})
+<<<<<<< HEAD
     field -= 10.0 * gradients
+=======
+    field -= 0.1 * gradients
+    
+>>>>>>> 33192fb7ae1e12682fec40f362689860fa8b0d84
     pbar.set_postfix(loss=float(output_forward), distance=float(distance))
     if i%1000 == 0 : 
         print({'loss': output_forward, 'distance': distance})
 
+<<<<<<< HEAD
 jnp.
+=======
+    
+print(stats)
+>>>>>>> 33192fb7ae1e12682fec40f362689860fa8b0d84

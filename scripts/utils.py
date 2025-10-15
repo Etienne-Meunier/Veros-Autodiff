@@ -1,7 +1,7 @@
 import sys
 from __init__ import PRP; sys.path.append(PRP)
 
-from setups.acc.acc import ACCSetup
+from setups.acc.acc_learning import ACCSetup
 from functools import partial
 import abc
 from tqdm import tqdm

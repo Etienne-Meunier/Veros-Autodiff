@@ -47,4 +47,4 @@ if __name__ == '__main__':
         ))
 
     df = pd.DataFrame(all_results)
-    df.to_csv('gradients_vs_iterations.csv', index=False)
+    df.to_csv('gradients_vs_iterations_151025.csv', index=False)

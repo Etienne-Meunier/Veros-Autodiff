@@ -3,10 +3,13 @@ sys.path.append(PRP + 'setups/')
 sys.path.append(PRP + 'veros/')
 sys.path.append(PRP + 'scripts/')
 
+print(PRP)
 from veros import runtime_settings
 setattr(runtime_settings, 'backend', 'jax')
 setattr(runtime_settings, 'force_overwrite', True)
 setattr(runtime_settings, 'linear_solver', 'scipy_jax')
+setattr(runtime_settings, 'device', 'gpu')
+
 
 from utils import warmup_acc, autodiff
 
@@ -43,6 +46,32 @@ class numerical_diff(autodiff) :
     def __str__(self) :
         return "numerical_diff"
 
+class numerical_diff_tensor(autodiff) :
+
+    @staticmethod
+    def perturb(field, direction, epsilon= 1e-4) : 
+        field_pert = field.copy() + epsilon * direction
+        return field_pert
+
+    def g(self, state, var_value, direction, iterations=1, epsilon=1e-9, **kwargs) :
+
+        forward = partial(autodiff.wrapper,
+                        state=state,
+                        step_fun=self.step_function,
+                        var_name=self.var_name,
+                        agg_func=self.agg_function,
+                        iter=iterations)
+
+        field_plus = self.perturb(var_value, direction, epsilon)
+        f_plus = forward(field_plus)
+        
+        field_minus = self.perturb(var_value, -direction, epsilon)
+        f_minus = forward(field_minus)
+        
+        numerical_dir_deriv = (f_plus - f_minus) / (2 * epsilon)
+
+        return (f_plus + f_minus)/2, numerical_dir_deriv
+        
 class forward_diff(autodiff) :
 
     def g(self, state, var_value, iterations=1, eps=1e-9, **kwargs) :
@@ -123,6 +152,24 @@ class vjp_grad(autodiff) :
         return "vjp_diff"
 
 
+class vjp_grad_new(autodiff) :
+
+   def g(self, state, var_value, iterations=1, **kwargs):
+    def loss_fn(v):
+        # rollout for `iterations` steps
+        n_state = autodiff.set_var(self.var_name, state, v)
+        for _ in range(iterations):
+            n_state = self.step_function(n_state)
+        return self.agg_function(n_state)
+
+    loss, grad = jax.value_and_grad(loss_fn)(var_value)
+    return loss, grad
+
+    def __str__(self) :
+        return "vjp_grad_new"
+
+
+
 if __name__ =='__main__' :
     acc = warmup_acc(20, override_settings={'enable_streamfunction' : False})
     acc.state._diagnostics = {}
@@ -137,7 +184,7 @@ if __name__ =='__main__' :
     var = jnp.array(1e-5, dtype=jnp.float64)
     iteration_grad = 100
 
-    methods = [numerical_diff, jvp_grad, vjp_grad]#[numerical_diff, backward_diff, forward_diff, jvp_grad, vjp_grad]
+    methods = [numerical_diff, jvp_grad, vjp_grad, vjp_grad_new]#[numerical_diff, backward_diff, forward_diff, jvp_grad, vjp_grad]
 
     for ad_method in methods :
         ad = ad_method(step_function, agg_function,  var_name)

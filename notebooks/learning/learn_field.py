@@ -16,10 +16,12 @@ variable_to_compare = 'temp' # Compare between perturbed and target
 acc = ACCSetup()
 acc.setup()
 
-for step in tqdm(range(300)) :
+breakpoint()
+for step in tqdm(range(10)) :
     acc.step(acc.state)
 
 
+breakpoint()
 
 # Build target
 
@@ -37,7 +39,7 @@ perturb_state = initial_state.copy()
 
 with perturb_state.variables.unlock() :
     v = getattr(perturb_state.variables, variable_to_perturb)
-    getattr(perturb_state.variables, variable_to_perturb, v*1.3)
+    setattr(perturb_state.variables, variable_to_perturb, v*1.3)
 
 field = getattr(perturb_state.variables, variable_to_perturb).copy()
 
@@ -54,13 +56,14 @@ agg_function = lambda state : agg_sum(state, target_state, key_sum=variable_to_c
 vjpm = vjp_grad(step_function, agg_function, variable_to_perturb)
 
 stats = []
-pbar = tqdm(range(200))
+pbar = tqdm(range(2000))
 for i in pbar:
     output_forward, gradients = vjpm.g(perturb_state, var_value=field, iterations=n_iteration, var_name=variable_to_perturb)
     distance = ((field - target_field) ** 2).mean()
     stats.append({'loss': output_forward, 'distance': distance})
-    field -= 1.0 * gradients
+    field -= 0.1 * gradients
     
     pbar.set_postfix(loss=float(output_forward), distance=float(distance))
 
     
+print(stats)

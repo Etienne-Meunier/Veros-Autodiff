@@ -4,11 +4,8 @@ sys.path.append(PRP + 'veros/')
 sys.path.append(PRP + 'scripts/')
 
 print(PRP)
-from veros import runtime_settings
-setattr(runtime_settings, 'backend', 'jax')
-setattr(runtime_settings, 'force_overwrite', True)
-setattr(runtime_settings, 'linear_solver', 'scipy_jax')
-setattr(runtime_settings, 'device', 'gpu')
+
+from load_runtime import *
 
 
 from utils import warmup_acc, autodiff
@@ -150,6 +147,38 @@ class vjp_grad(autodiff) :
 
     def __str__(self) :
         return "vjp_diff"
+
+
+class vjp_grad_scan(autodiff):
+    def g(self, state, var_value, iterations=1, **kwargs):
+        # Set initial state
+        n_state = autodiff.set_var(self.var_name, state, var_value)
+
+        # --- Forward pass with scan ---
+        def fwd_body(carry, _):
+            current_state = carry
+            new_state, vjp_fun = jax.vjp(self.step_function, current_state)
+            return new_state, vjp_fun
+
+        n_state, vjp_funs = lax.scan(fwd_body, n_state, None, length=iterations)
+
+        # --- Aggregation ---
+        loss, vjp_agg = jax.vjp(self.agg_function, n_state)
+
+        # --- Backward pass ---
+        def bwd_body(carry, vjp_fun):
+            ds = carry
+            ds, = vjp_fun(ds)
+            return ds, None
+
+        ds = jnp.ones_like(loss)
+        ds, _ = lax.scan(bwd_body, ds, vjp_funs, reverse=True)
+
+        grad = attrgetter(f'variables.{self.var_name}')(ds)
+        return loss, grad
+
+    def __str__(self):
+        return "vjp_grad_scan"
 
 
 class vjp_grad_new(autodiff) :

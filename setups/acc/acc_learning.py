@@ -86,7 +86,7 @@ class ACCSetup(VerosSetup):
         settings.kappaH_min = 2e-5
         settings.enable_kappaH_profile = True
 
-        settings.K_gm_0 = 1000.0
+        #settings.K_gm_0 = 1000.0
         settings.enable_eke = True
         settings.eke_k_max = 1e4
         settings.eke_c_k = 0.4

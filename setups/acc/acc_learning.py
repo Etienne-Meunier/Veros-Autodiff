@@ -77,8 +77,8 @@ class ACCSetup(VerosSetup):
         settings.enable_implicit_vert_friction = True
 
         settings.enable_tke = True
-        settings.c_k = 0.1
-        settings.c_eps = 0.7
+        #settings.c_k = 0.1
+        #settings.c_eps = 0.7
         settings.alpha_tke = 30.0
         settings.mxl_min = 1e-8
         settings.tke_mxl_choice = 2

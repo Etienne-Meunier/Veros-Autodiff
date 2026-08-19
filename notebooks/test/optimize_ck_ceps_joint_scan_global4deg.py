@@ -1,19 +1,20 @@
 # %%
-# Joint tuning of c_k and c_eps on the ACC setup :
+# Joint tuning of c_k and c_eps on the global_4deg setup (see
+# notebooks/test/optimize_ck_ceps_joint_scan.py for the ACC version) :
 #   - c_k / c_eps were TKE-closure settings (fixed constants); promoted to variables the
 #     same way K_gm_0 / r_bot were, so they can be differentiated w.r.t. (see
 #     veros/veros/variables.py, veros/veros/settings.py, veros/veros/core/tke.py)
-#   - fix a target state by rolling out ACC from known (c_k, c_eps)
+#   - fix a target state by rolling out global_4deg from known (c_k, c_eps)
 #   - scan a 2D grid of (c_k, c_eps) to build a loss colormap
 #   - run plain gradient descent from a random start near the optimum,
 #     minimizing distance to the target state
 #   - plot the loss colormap with the GD trajectory overlaid and a star
 #     at the true (c_k, c_eps)
 #
-# c_eps's gradient used to disagree with finite differences by up to ~90% (root cause: a
-# gradient clip in safe_sqrt, veros/veros/core/operators.py — fixed; see
-# scripts/debugging_ceps/). Matches FD to ~0.02-0.06% now, same quality as c_k, under
-# ACC's default tke_mxl_choice (2) — no override needed.
+# c_eps's gradient here originally disagreed with finite differences in SIGN at several
+# rollout lengths (root cause: the same safe_sqrt clip as ACC's — fixed; see
+# scripts/debugging_ceps/). Matches FD to ~0.2-2.4% now, same quality as c_k, under
+# global_4deg's default tke_mxl_choice (2) — no override needed.
 from __init__ import PRP; import sys
 sys.path.append(PRP + 'veros/')
 
@@ -25,7 +26,7 @@ import jax
 sys.path.append(PRP)
 
 from scripts.load_runtime import *  # Setup runtime settings for veros
-from setups.acc.acc_learning import ACCSetup
+from setups.global_4deg.global_4deg_learning import GlobalFourDegreeSetup
 
 import numpy as np
 import jax.numpy as jnp
@@ -35,33 +36,35 @@ from tqdm import tqdm
 # %%
 # Spin-up
 warmup_steps = 200
-acc = ACCSetup()
-acc.setup()
-with acc.state.settings.unlock():
-    acc.state.settings.enable_eke = False
+g4d = GlobalFourDegreeSetup()
+g4d.setup()
+with g4d.state.settings.unlock():
+    g4d.state.settings.enable_eke = False
 
-with acc.state.variables.unlock():
-    acc.state.variables.c_k += 0.0
-    acc.state.variables.c_eps += 0.0
+with g4d.state.variables.unlock():
+    g4d.state.variables.r_bot += 1e-5
+    g4d.state.variables.K_gm_0 += 1000.0
+    g4d.state.variables.c_k += 0.0
+    g4d.state.variables.c_eps += 0.0
 
 def ps(state):
     n_state = state.copy()
-    acc.step(n_state)
+    g4d.step(n_state)
     return n_state
 
 step_jit = jax.jit(ps)
 
-state = acc.state.copy()
+state = g4d.state.copy()
 for _ in tqdm(range(warmup_steps), desc="spin-up"):
     state = step_jit(state)
 
-acc.state = state
+g4d.state = state
 
 # %%
 # Non-jitted step + a checkpointed/jitted variant for use under grad (remat to save memory)
 def pure_step(state):
     n_state = state.copy()
-    acc.step(n_state)
+    g4d.step(n_state)
     return n_state
 
 step_diff = jax.checkpoint(jax.jit(pure_step))
@@ -81,10 +84,10 @@ def rollout(step_fn, state, iterations):
 # %%
 # Target state: roll out `pred_iter` steps from the spun-up state (true c_k, c_eps)
 pred_iter = 5
-c_k_true = float(acc.state.variables.c_k)
-c_eps_true = float(acc.state.variables.c_eps)
+c_k_true = float(g4d.state.variables.c_k)
+c_eps_true = float(g4d.state.variables.c_eps)
 
-target_state = rollout(step_jit, acc.state, pred_iter)
+target_state = rollout(step_jit, g4d.state, pred_iter)
 
 # %%
 # Loss: distance between the rolled-out temperature and the target temperature
@@ -97,8 +100,8 @@ def loss_fn(params, step_fn, state):
     n_state = rollout(step_fn, n_state, pred_iter)
     return agg_function(n_state)
 
-loss_grid_fn = jax.jit(lambda params: loss_fn(params, step_jit, acc.state))
-loss_grad_fn = jax.jit(jax.value_and_grad(lambda params: loss_fn(params, step_diff, acc.state)))
+loss_grid_fn = jax.jit(lambda params: loss_fn(params, step_jit, g4d.state))
+loss_grad_fn = jax.jit(jax.value_and_grad(lambda params: loss_fn(params, step_diff, g4d.state)))
 
 # %%
 # 2D scan around the true values
@@ -153,13 +156,13 @@ ax.plot(trajectory[-1, 0], trajectory[-1, 1], "s", color="red", markersize=8, la
 ax.plot(c_k_true, c_eps_true, "*", color="black", markersize=18, markeredgecolor="white",
         label="true params")
 
-ax.set_title(f"Joint (c_k, c_eps) loss landscape ({pred_iter}-step rollout)")
+ax.set_title(f"Joint (c_k, c_eps) loss landscape ({pred_iter}-step rollout, global_4deg)")
 ax.set_xlabel("c_k")
 ax.set_ylabel("c_eps")
 ax.legend()
 
 fig.tight_layout()
 
-out_path = f'{PRP}notebooks/figures/ck_ceps_joint_scan_{datetime.now().strftime("%d%m%y")}.png'
+out_path = f'{PRP}notebooks/figures/ck_ceps_joint_scan_global4deg_{datetime.now().strftime("%d%m%y")}.png'
 fig.savefig(out_path, dpi=150)
 print(f"Saved figure to {out_path}")

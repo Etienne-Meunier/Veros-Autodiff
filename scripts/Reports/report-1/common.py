@@ -51,7 +51,10 @@ def make_diff_step(g4d):
         n_state = state.copy()
         g4d.step(n_state)
         return n_state
-    return jax.checkpoint(jax.jit(pure_step))
+    # No inner jax.jit here: rollout() traces this once via jax.lax.scan and the
+    # caller jits the whole loss/grad around it -- see scripts/gradient_routines/README.md
+    # (scan_checkpoint: flat compile time vs rollout length, unlike an unrolled loop).
+    return jax.checkpoint(pure_step)
 
 
 def set_vars(state, **values):
@@ -63,6 +66,8 @@ def set_vars(state, **values):
 
 
 def rollout(step_fn, state, iterations):
-    for _ in range(iterations):
-        state = step_fn(state)
+    # lax.scan traces step_fn once and reuses it `iterations` times, instead of a
+    # python for-loop unrolling it into the trace -- compile time stays flat as
+    # `iterations` grows, instead of blowing up (see scripts/gradient_routines/README.md).
+    state, _ = jax.lax.scan(lambda c, _: (step_fn(c), None), state, length=iterations)
     return state

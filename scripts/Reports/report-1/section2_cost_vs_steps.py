@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from scripts.report.common import spin_up_global4deg, set_vars, rollout
+from common import spin_up_global4deg, set_vars, rollout
 
 g4d, step_jit = spin_up_global4deg(200)
 

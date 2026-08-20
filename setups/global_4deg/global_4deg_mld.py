@@ -112,13 +112,14 @@ def update_mld_moving_average(mld, mld_history, write_idx, window):
     (nx, ny, window)) is unavoidable for an *exact* windowed mean -- the value falling
     out of the window has to be known to update a running sum. mld_history holds
     exactly the last `window` mld snapshots (NaN-filled before the buffer first
-    wraps), MLD_MA is just their nanmean, and `write_idx` (a single scalar, wraps mod
-    window) is the only other state carried. nanmean over a NaN-prefilled buffer also
-    gets the warm-up ramp and the land/degenerate-column exclusion (mld is NaN there,
-    see mld_from_prho) for free.
+    wraps), `write_idx` (a single scalar, wraps mod window) is the only other state
+    carried. Plain mean (not nanmean) over the window: any NaN day (land, or a
+    degenerate/undefined MLD column, see mld_from_prho) propagates to the average --
+    a cell is only ever averaged from fully well-defined days, and stays NaN during
+    warm-up until the buffer has wrapped at least once.
     """
     mld_history = update(mld_history, at[:, :, write_idx], mld)
-    mld_ma = npx.nanmean(mld_history, axis=-1)
+    mld_ma = npx.mean(mld_history, axis=-1)
     next_write_idx = (write_idx + 1) % window
     return mld_history, next_write_idx, mld_ma
 

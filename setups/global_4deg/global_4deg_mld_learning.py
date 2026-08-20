@@ -6,15 +6,20 @@ global_flexible` dump with a custom `mld` mixed-layer-depth diagnostic bolted on
 adapted the same way `global_4deg_learning.py` was adapted from the built-in
 `global_4deg` setup (see that module's original docstring):
 
- - `enable_streamfunction = False` : avoids the untested/unpatched barotropic
-   streamfunction solve path (`solve_stream.py`, island line-integral solves).
-   Keeps the model on the `solve_pressure.py` path, patched with `lax.cond` for
-   differentiability.
- - `eq_of_state_type = 3` (nonlin2, `veros/core/density/nonlinear_eq2.py`) instead of
-   `5` (gsw/TEOS-10) : `gsw.py`'s `gsw_rho`/`gsw_drhodT`/`gsw_drhodS`/`gsw_drhodP` call
-   `sqrt(salt)` with no floor, which reproduces the NaN-gradient bug `safe_sqrt` was
-   built to fix in eke/tke, at every masked/land cell (salt == 0). `nonlinear_eq2.py`
-   has no sqrt calls at all.
+ - `enable_streamfunction = True`, `eq_of_state_type = 5` (gsw/TEOS-10) : both re-enabled
+   now that their differentiability blockers are fixed. `gsw.py`'s every `sqrt` call
+   (the 7 `sqrt(sa)` sites plus 3 more discriminant-style sqrts inside `gsw_dyn_enthalpy`/
+   `gsw_dHdT`/`gsw_dHdS`) now goes through `safe_sqrt` (veros submodule commit
+   `a69b32c`, "Differentiability for teos 5") instead of plain `sqrt` -- forward-neutral
+   (`safe_sqrt`'s primal is unmodified `jnp.sqrt`, only the JVP is floored), fixes the
+   NaN-gradient blowup `sqrt`'s derivative has at 0 (masked/land cells have salt == 0).
+   The barotropic streamfunction solve path (`solve_stream.py`, island line-integral
+   solves) was never patched with `lax.cond`, but grad-checked clean as-is: see
+   `scripts/debugging_stream/` (01: confirms the island-correction branch is exercised
+   on the ACC toy setup, nisle=2; 02: autodiff vs central-finite-difference agrees to
+   rel_err~1.5e-5 at n=5 steps through the full path incl. islands; 03: explains 02's
+   n=2 disagreement as float64 cancellation noise, not a real bug). Not yet re-run on
+   this setup's grid/topology specifically -- only verified on the small ACC setup.
  - `set_diagnostics` -> `diagnostics.clear()` : diagnostics do file I/O and build
    `xarray.Dataset` objects from Python-side state, which doesn't survive `jit`
    tracing. The gradient/report scripts never read `state.diagnostics` anyway.
@@ -31,9 +36,10 @@ adapted the same way `global_4deg_learning.py` was adapted from the built-in
    (dynamic shape); here it only ever masks/gathers over the full, statically-shaped
    `zt`/`prho` axis, so recomputing it every call from the live `zt` -- instead of
    caching a Python int once -- stays jit-safe), a `maskT`-based land mask (the
-   original used `isnan(prho)`, which only ever fires
-   under GSW's NaN bug we're specifically avoiding -- under nonlin2, land cells are
-   exactly `0.0`, not NaN, so `isnan` silently stops excluding land), and NaN-gradient
+   original used `isnan(prho)`, which only reliably fires under GSW's now-fixed
+   sqrt-gradient bug (see above); at land, `prho` is a finite value driven by
+   `salt == 0`, not NaN, under gsw or nonlin2 alike, so `isnan` silently stops
+   excluding land -- `maskT` is correct regardless of `eq_of_state_type`), and NaN-gradient
    safety (the original's NaN-sentinel + `nanmax`/`nanmin`/`nanmean` pattern produces
    NaN *gradients* -- not NaN values -- at land/degenerate columns that then
    contaminate the gradient at every other column once collected into one array/loss;
@@ -140,18 +146,19 @@ def update_mld_moving_average(mld, mld_history, write_idx, window):
     *exact* windowed mean -- the value falling out of the window has to be known to
     update a running sum, which means keeping it around. This keeps that storage to
     the minimum: mld_history holds exactly the last `window` mld snapshots (NaN-filled
-    before the buffer first wraps), MLD_MA is just their nanmean, and `write_idx` (a
-    single scalar, wraps mod window) is the only other state carried -- no separate
-    unbounded step counter. nanmean over a NaN-prefilled buffer also gets the warm-up
-    ramp (averaging over however many steps have actually happened so far) and the
-    land/degenerate-column exclusion (mld is NaN there, see mld_from_prho) for free.
+    before the buffer first wraps), `write_idx` (a single scalar, wraps mod window) is
+    the only other state carried -- no separate unbounded step counter. Plain mean
+    (not nanmean) over the window: any NaN day (land, or a degenerate/undefined MLD
+    column, see mld_from_prho) propagates to the average -- a cell is only ever
+    averaged from fully well-defined days, and stays NaN during warm-up until the
+    buffer has wrapped at least once.
 
     Writes via dynamic-index scatter (`.at[:, :, write_idx].set(...)`) and reads via
-    nanmean over the fixed-size window axis -- no variable-length slicing, so this is
+    mean over the fixed-size window axis -- no variable-length slicing, so this is
     jax.jit/lax.scan-safe the same way get_index_mld/mld_from_index are above.
     """
     mld_history = update(mld_history, at[:, :, write_idx], mld)
-    mld_ma = npx.nanmean(mld_history, axis=-1)
+    mld_ma = npx.mean(mld_history, axis=-1)
     next_write_idx = (write_idx + 1) % window
     return mld_history, next_write_idx, mld_ma
 
@@ -206,8 +213,8 @@ class GlobalFlexibleMLDLearningSetup(VerosSetup):
         settings.enable_implicit_vert_friction = True
 
         # differentiable-veros adjustments (see module docstring)
-        settings.eq_of_state_type = 3
-        settings.enable_streamfunction = False
+        settings.eq_of_state_type = 5
+        settings.enable_streamfunction = True
 
         # isoneutral
         settings.enable_neutral_diffusion = True

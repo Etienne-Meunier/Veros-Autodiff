@@ -44,6 +44,55 @@ def _make_small_window_setup(window):
     return _SmallWindowSetup
 
 
+class GswOnlyFullGridSetup(GlobalFlexibleMLDLearningSetup):
+    """Full grid (nz=60, ETOPO5) with gsw (eq_of_state_type=5) but streamfunction
+    forced back off -- isolates whether gsw alone (without streamfunction) reproduces
+    the n=200 gradient blow-up found with both on (see diag_n200_temp_loss.py)."""
+
+    @veros_routine
+    def set_parameter(self, state):
+        GlobalFlexibleMLDLearningSetup.__dict__["set_parameter"].function(self, state)
+        with state.settings.unlock():
+            state.settings.enable_streamfunction = False
+
+
+class StreamOnlyFullGridSetup(GlobalFlexibleMLDLearningSetup):
+    """Full grid (nz=60, ETOPO5) with streamfunction on but eq_of_state_type forced
+    back to nonlin2 (3) -- isolates whether streamfunction alone (without gsw)
+    reproduces the blow-up."""
+
+    @veros_routine
+    def set_parameter(self, state):
+        GlobalFlexibleMLDLearningSetup.__dict__["set_parameter"].function(self, state)
+        with state.settings.unlock():
+            state.settings.eq_of_state_type = 3
+
+
+def spin_up_full_grid(setup_cls, warmup_steps=20, desc="spin-up (mld-2, full grid)"):
+    """Generic full-grid spin-up for any GlobalFlexibleMLDLearningSetup variant
+    (plain, small-window, gsw-only, streamfunction-only)."""
+    g4d = setup_cls()
+    g4d.setup()
+
+    with g4d.state.variables.unlock():
+        g4d.state.variables.c_k += 0.0
+        g4d.state.variables.c_eps += 0.0
+
+    def ps(state):
+        n_state = state.copy()
+        g4d.step(n_state)
+        return n_state
+
+    step_jit = jax.jit(ps)
+
+    state = g4d.state.copy()
+    for _ in tqdm(range(warmup_steps), desc=desc):
+        state = step_jit(state)
+    g4d.state = state
+
+    return g4d, step_jit
+
+
 def spin_up_phase1(window, warmup_steps=20):
     """Full grid (nz=60, gsw+streamfunction), mld_ma_window shrunk to `window`."""
     setup_cls = _make_small_window_setup(window)
@@ -113,10 +162,9 @@ def make_diff_step(g4d):
         g4d.step(n_state)
         return n_state
 
-    # No inner jax.jit here: rollout() traces this once via jax.lax.scan and the
-    # caller jits the whole loss/grad around it (flat compile time vs rollout length,
-    # unlike an unrolled loop -- see scripts/gradient_routines/README.md).
-    return jax.checkpoint(pure_step)
+    # No jax.checkpoint here: it's applied per-chunk in rollout() instead (see that
+    # function's docstring for why per-step checkpointing doesn't bound memory).
+    return pure_step
 
 
 def set_vars(state, **values):
@@ -127,8 +175,41 @@ def set_vars(state, **values):
     return n_state
 
 
-def rollout(step_fn, state, iterations):
-    state, _ = jax.lax.scan(lambda c, _: (step_fn(c), None), state, length=iterations)
+# Steps per checkpointed chunk. This bounds the backward pass's peak memory --
+# roughly chunk_size * (one step's activation memory), a property of the *grid*
+# (nz=60 full grid vs. nz=15 mini grid) and the hardware's memory budget, not of
+# `iterations`. Verified safe on the full grid at n=6/12/16 (16GB P100); tune up for
+# a cheaper grid or more memory, down if you still OOM.
+DEFAULT_CHECKPOINT_CHUNK_SIZE = 4
+
+
+def rollout(step_fn, state, iterations, chunk_size=DEFAULT_CHECKPOINT_CHUNK_SIZE):
+    """Scan-of-checkpointed-chunks: reverse-mode through a plain jax.lax.scan of
+    length n stores the full state carry at every one of the n iterations (a
+    per-step jax.checkpoint only trims each step's *internal* temporaries, not that
+    O(n) carry storage -- this is what OOM'd at n=400 on a 16GB P100, see
+    Results/Report/report-mld-2.md). Splitting into ceil(n/chunk_size) chunks and
+    checkpointing each chunk means only the chunk-boundary carries stay live for the
+    backward pass.
+
+    Always chunked, no small-n skip: per-step memory cost depends on the grid, which
+    iteration count alone can't tell you -- n=12 unchunked OOM'd on the full grid
+    despite n=100 unchunked being fine on the mini grid. Pass an explicit chunk_size
+    tuned to your grid/hardware rather than relying on the default, which is just a
+    verified-safe starting point for the full grid.
+    """
+    n_full, remainder = divmod(iterations, chunk_size)
+
+    def run_chunk(state, length):
+        state, _ = jax.lax.scan(lambda c, _: (step_fn(c), None), state, length=length)
+        return state
+
+    if n_full:
+        checkpointed_chunk = jax.checkpoint(lambda s: run_chunk(s, chunk_size))
+        state, _ = jax.lax.scan(lambda c, _: (checkpointed_chunk(c), None), state, length=n_full)
+    if remainder:
+        state = jax.checkpoint(lambda s: run_chunk(s, remainder))(state)
+
     return state
 
 

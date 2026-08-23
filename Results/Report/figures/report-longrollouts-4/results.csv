@@ -1,0 +1,7 @@
+nz,n,window,lead_chunk_size,tail_chunk_size,status,compile_time_s,run_time_s,grad,peak_mem_bytes,note
+64,500,365,32,32,OK,834.9155769348145,81.8684732913971,-2.586550724928108e+37,11175814144,
+64,1000,365,32,32,INTERRUPTED,,,,,GPU job walltime expired mid-run -- not a memory/gradient failure, job killed externally
+64,365,365,32,32,OK,550.6500163078308,59.77594351768494,1.5115335317761903e+30,10155051520,window==n so lead phase is skipped entirely
+64,10,10,10,10,OK,398.2160584926605,1.8295631408691406,-71438.9972237029,3978543360,window==n so lead phase is skipped entirely
+64,50,10,40,10,OK,531.4883034229279,8.333090782165527,-19294190.24049043,9452523520,
+64,100,10,90,10,CRASHED_OOM,,,,17805890840,lead_chunk_size=90 for a 90-step lead is effectively unchunked -- memory failure is a calibration artifact, not necessarily a real n=100 ceiling

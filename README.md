@@ -80,3 +80,29 @@ Structural things that had to be disabled/constrained to get differentiability w
 - **All diagnostics disabled** (`set_diagnostics` reduced to `diagnostics.clear()` in `acc_learning.py`): diagnostics do file I/O and build `xarray.Dataset` objects from Python-side state, which doesn't survive `jit` tracing — cut entirely rather than patched.
 - **Hard divergence check removed** (`numerics.sanity_check` in `veros.py`): a Python `raise` on a traced boolean can't be jitted, so this safety check had to go rather than be adapted.
 - **Must run in float64**: `jax.config.update("jax_enable_x64", True)` is required in every notebook — JAX's default float32 isn't numerically stable enough for reverse-mode gradients through a multi-step rollout.
+
+## Running on Grid5000 (GPU)
+
+Uses [`g5k_launcher`](https://github.com/) (`g5k` CLI, aliased separately) for code sync, and a plain `oarsub` interactive job for the GPU itself.
+
+1. **Sync code** to the remote (one-shot push, local is source of truth):
+   ```
+   g5k sync code
+   ```
+2. **SSH in and grab a GPU**, inside `tmux` so the session survives disconnects:
+   ```
+   ssh arennes
+   tmux new -s veros
+   gpi   # alias for: oarsub -l host=1/gpu=1,walltime=3:00:00 -I
+   ```
+3. **Activate the env** (a `diffusion`-based conda/mamba env with `jax[cuda12]` installed — match the `jax`/`jaxlib` version to whatever's pinned in your local dev env, not `veros/requirements_jax.txt`, which is stale):
+   ```
+   source ~/.bash_profile
+   mamba activate veros
+   ```
+4. **Run the script with `VEROS_DEVICE=gpu`** — `scripts/load_runtime.py` defaults to `runtime_settings.device = 'cpu'` (see Current limitations above), overridable via this env var:
+   ```
+   cd ~/code/Veros-Autodiff/scripts/Reports/<report-dir>
+   VEROS_DEVICE=gpu python <script>.py
+   ```
+   Outputs land under `$STORE/...` per the individual script (raw data isn't git-tracked, see `.gitignore`). Sync results back with `g5k sync model`.

@@ -59,30 +59,3 @@ regenerates these with `optax` and will also produce n=1000.)
 
 ![n=250 landscape](figures/report-2/section3b_ck_ceps_landscape_n0250.png)
 ![n=250 temp snapshot](figures/report-2/section3b_ck_ceps_temp_snapshot_n0250.png)
-
-## Cost note (why n=1000 is slow)
-
-`jax.checkpoint` + `jax.lax.scan` keeps *compile* time flat as rollout length grows
-(see `scripts/gradient_routines/README.md`) but not *runtime* — each gradient call
-still executes the physics forward pass `pred_iter` times, and checkpoint recomputes
-that forward pass again on the backward pass. Combined with running on CPU (no GPU
-backend in this environment), cost scales roughly linearly with
-`pred_iter x (grid_points + GD_steps)`. At n=1000 the grid scan alone is ~400
-1000-step evaluations; the full stage (grid + 150-step Adam run) takes several hours.
-A first attempt died mid-run when the machine went to sleep overnight.
-
-## To finish
-
-`rollout_lengths` in the script already includes 1000. Run it under something that
-survives sleep:
-
-```
-caffeinate -i python scripts/Reports/report-2/section3b_ck_ceps_long_rollout.py
-```
-
-This reruns all 5 lengths from scratch (the first four are cheap, seconds to minutes);
-n=1000 is the only long pole. Once it finishes, add its row and figures
-(`section3b_ck_ceps_landscape_n1000.png`, `section3b_ck_ceps_temp_snapshot_n1000.png`)
-above.
-
-Script: `scripts/Reports/report-2/section3b_ck_ceps_long_rollout.py`

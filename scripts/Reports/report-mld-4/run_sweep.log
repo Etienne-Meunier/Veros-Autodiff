@@ -1,0 +1,52 @@
+[gsw_only][n=5][grad] cached, skipping
+[gsw_only][n=5][fd] cached, skipping
+[gsw_only][n=20][grad] cached, skipping
+[gsw_only][n=20][fd] cached, skipping
+[gsw_only][n=75][grad] cached, skipping
+[gsw_only][n=75][fd] cached, skipping
+[gsw_only][n=250][grad] cached, skipping
+[gsw_only][n=250][fd] cached, skipping
+[stream_only][n=5][grad] cached, skipping
+[stream_only][n=5][fd] cached, skipping
+[stream_only][n=20][grad] cached, skipping
+[stream_only][n=20][fd] cached, skipping
+[stream_only][n=75][grad] cached, skipping
+[stream_only][n=75][fd] cached, skipping
+[stream_only][n=250][grad] cached, skipping
+[stream_only][n=250][fd] cached, skipping
+[neither][n=5][grad] cached, skipping
+[neither][n=5][fd] cached, skipping
+[neither][n=20][grad] cached, skipping
+[neither][n=20][fd] cached, skipping
+[neither][n=75][grad] cached, skipping
+[neither][n=75][fd] cached, skipping
+[neither][n=250][grad] cached, skipping
+[neither][n=250][fd] cached, skipping
+[acc_full][n=5][grad] cached, skipping
+[acc_full][n=5][fd] cached, skipping
+[acc_full][n=20][grad] cached, skipping
+[acc_full][n=20][fd] cached, skipping
+[acc_full][n=75][grad] cached, skipping
+[acc_full][n=75][fd] cached, skipping
+[acc_full][n=250][grad] launching worker...
+[acc_full][n=250][grad] done (399.0s): RESULT config=acc_full loss=nan grad=nan
+[acc_full][n=250][fd] launching worker...
+[acc_full][n=250][fd] done (143.7s): RESULT config=acc_full num_grad=nan
+[gsw_only][n=5]  loss=2.724743e+00  autodiff=4.347024e+02  numerical=4.346886e+02  rel_err=3.1673e-05
+[gsw_only][n=20]  loss=1.444716e+01  autodiff=1.381639e+03  numerical=3.890662e+03  rel_err=6.4488e-01
+[gsw_only][n=75]  loss=4.535483e+01  autodiff=1.394900e+05  numerical=8.783556e+03  rel_err=1.4881e+01
+[gsw_only][n=250]  loss=7.940304e+01  autodiff=2.197437e+19  numerical=-2.681469e+05  rel_err=8.1949e+13
+[stream_only][n=5]  loss=1.855184e+00  autodiff=3.488586e+02  numerical=3.488585e+02  rel_err=4.7882e-07
+[stream_only][n=20]  loss=1.100428e+01  autodiff=1.888734e+03  numerical=1.908231e+03  rel_err=1.0217e-02
+[stream_only][n=75]  loss=3.050812e+01  autodiff=-1.115414e+08  numerical=4.352102e+04  rel_err=2.5639e+03
+[stream_only][n=250]  loss=1.311498e+02  autodiff=7.290186e+18  numerical=-5.464995e+05  rel_err=1.3340e+13
+[neither][n=5]  loss=6.933168e+00  autodiff=3.895044e+02  numerical=3.903658e+02  rel_err=2.2066e-03
+[neither][n=20]  loss=1.465526e+01  autodiff=1.596566e+03  numerical=1.552473e+03  rel_err=2.8402e-02
+[neither][n=75]  loss=4.741522e+01  autodiff=7.880820e+07  numerical=5.056569e+04  rel_err=1.5575e+03
+[neither][n=250]  loss=8.150218e+01  autodiff=1.832219e+19  numerical=7.096189e+05  rel_err=2.5820e+13
+[acc_full][n=5]  loss=1.042799e-02  autodiff=2.498742e+00  numerical=2.498765e+00  rel_err=9.2539e-06
+[acc_full][n=20]  loss=1.384846e-01  autodiff=3.279064e+01  numerical=3.279067e+01  rel_err=7.9969e-07
+[acc_full][n=75]  loss=nan  autodiff=nan  numerical=nan  rel_err=nan
+[acc_full][n=250]  loss=nan  autodiff=nan  numerical=nan  rel_err=nan
+Saved figure to /home/emeunier/code/Veros-Autodiff/Results/Report/figures/report-mld-4/sweep_rel_err_vs_n.png
+[{'config': 'gsw_only', 'n': 5, 'loss': 2.7247430805473534, 'grad': 434.70235470273354, 'num_grad': 434.6885867736461, 'rel_err': 3.167308621938516e-05}, {'config': 'gsw_only', 'n': 20, 'loss': 14.44715828391076, 'grad': 1381.6394616562172, 'num_grad': 3890.662252233668, 'rel_err': 0.6448832172818383}, {'config': 'gsw_only', 'n': 75, 'loss': 45.354827902692676, 'grad': 139489.9647462276, 'num_grad': 8783.555889301908, 'rel_err': 14.8808080126321}, {'config': 'gsw_only', 'n': 250, 'loss': 79.40303918486141, 'grad': 2.1974373536047714e+19, 'num_grad': -268146.93364110554, 'rel_err': 81949001756846.58}, {'config': 'stream_only', 'n': 5, 'loss': 1.855183841391368, 'grad': 348.8586280907726, 'num_grad': 348.85846105203734, 'rel_err': 4.788152041323569e-07}, {'config': 'stream_only', 'n': 20, 'loss': 11.004282863347042, 'grad': 1888.7339717794948, 'num_grad': 1908.231304859953, 'rel_err': 0.010217489373956778}, {'config': 'stream_only', 'n': 75, 'loss': 30.508119858523795, 'grad': -111541409.29326546, 'num_grad': 43521.0160835684, 'rel_err': 2563.932103402304}, {'config': 'stream_only', 'n': 250, 'loss': 131.14975184133198, 'grad': 7.290185604919438e+18, 'num_grad': -546499.5477643413, 'rel_err': 13339783417467.018}, {'config': 'neither', 'n': 5, 'loss': 6.933167686032146, 'grad': 389.5044074010147, 'num_grad': 390.3657716621822, 'rel_err': 0.002206556833863337}, {'config': 'neither', 'n': 20, 'loss': 14.655260098169347, 'grad': 1596.5660486081395, 'num_grad': 1552.4731291307603, 'rel_err': 0.028401727959096505}, {'config': 'neither', 'n': 75, 'loss': 47.41522252141908, 'grad': 78808200.20508897, 'num_grad': 50565.69355238594, 'rel_err': 1557.5309855078692}, {'config': 'neither', 'n': 250, 'loss': 81.50217512683767, 'grad': 1.832218564186328e+19, 'num_grad': 709618.9221594003, 'rel_err': 25819753489813.08}, {'config': 'acc_full', 'n': 5, 'loss': 0.010427988139459719, 'grad': 2.4987415968669637, 'num_grad': 2.4987647203105965, 'rel_err': 9.25394993966506e-06}, {'config': 'acc_full', 'n': 20, 'loss': 0.13848460370169952, 'grad': 32.790640389873126, 'num_grad': 32.79066661227015, 'rel_err': 7.996908795842952e-07}, {'config': 'acc_full', 'n': 75, 'loss': nan, 'grad': nan, 'num_grad': nan, 'rel_err': nan}, {'config': 'acc_full', 'n': 250, 'loss': nan, 'grad': nan, 'num_grad': nan, 'rel_err': nan}]

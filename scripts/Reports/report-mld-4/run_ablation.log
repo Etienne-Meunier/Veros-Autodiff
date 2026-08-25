@@ -1,0 +1,15 @@
+[gsw_only][grad] cached, skipping
+[gsw_only][fd] cached, skipping
+[stream_only][grad] cached, skipping
+[stream_only][fd] cached, skipping
+[neither][grad] cached, skipping
+[neither][fd] cached, skipping
+[acc_full][grad] cached, skipping
+[acc_full][fd] cached, skipping
+[full]  loss=1.201024e+01  autodiff=-1.575077e+03  numerical=2.471906e+03  rel_err=1.6372e+00
+[gsw_only]  loss=1.444531e+01  autodiff=1.550725e+03  numerical=1.085665e+03  rel_err=4.2836e-01
+[stream_only]  loss=1.100428e+01  autodiff=1.888708e+03  numerical=1.908205e+03  rel_err=1.0218e-02
+[neither]  loss=1.465554e+01  autodiff=1.600579e+03  numerical=1.618184e+03  rel_err=1.0879e-02
+[acc_full]  loss=1.384846e-01  autodiff=3.279064e+01  numerical=3.279067e+01  rel_err=8.0302e-07
+Saved figure to /home/emeunier/code/Veros-Autodiff/Results/Report/figures/report-mld-4/ablation_rel_err.png
+[{'config': 'full', 'loss': 12.010238263056102, 'grad': -1575.0766890999078, 'num_grad': 2471.9064653000446, 'rel_err': 1.6371910552484121}, {'config': 'gsw_only', 'loss': 14.445308432126657, 'grad': 1550.7248895616344, 'num_grad': 1085.6646491026468, 'rel_err': 0.4283645422584055}, {'config': 'stream_only', 'loss': 11.004282864149257, 'grad': 1888.707823392536, 'num_grad': 1908.2050008325525, 'rel_err': 0.010217548655154876}, {'config': 'neither', 'loss': 14.655541799118648, 'grad': 1600.579488153819, 'num_grad': 1618.1840902858014, 'rel_err': 0.010879233232896912}, {'config': 'acc_full', 'loss': 0.1384846037076935, 'grad': 32.79064039041068, 'num_grad': 32.790666722126716, 'rel_err': 8.030247222233524e-07}]
